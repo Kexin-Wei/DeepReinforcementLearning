@@ -1,9 +1,16 @@
 import gym
-env = gym.make("FrozenLake-v0")
+import matplotlib.pyplot as plt
+import os
+
+DIR = "gym_graph"
+
+env = gym.make('Breakout-v0')
 env.reset()
-for _ in range(1000):
-    env.render()
-    action=int(input("0-3"))
-    env.step(action)
-    #env.step(env.action_space.sample()) # take a random action
+img = plt.imshow(env.render(mode='rgb_array')) # only call this once
+print(env.render(mode='rgb_array').shape)
+
+for i in range(1000):
+    if i % 100 == 0:
+        plt.imsave(os.path.join(DIR,str(i)+'.png'),env.render(mode='rgb_array'))
+    env.step(env.action_space.sample())
 env.close()
