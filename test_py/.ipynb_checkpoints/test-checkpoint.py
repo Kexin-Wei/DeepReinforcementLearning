@@ -1,4 +1,23 @@
+# remove a directory
+import os 
+import shutil
+
+try:
+    os.mkdir('test')
+except:
+    pass
+with open('test/test.txt','w') as f:
+    f.write("test for the delete")
+
+input("ready?")
+
+shutil.rmtree('test')
+
+
+
+
 # for enumerate
+"""
 from collections import deque
 import numpy as np
 import random
@@ -9,9 +28,7 @@ for i in range(3):
     
 for index,(l1,l2,l3,l4) in enumerate(d):
     print(index,l1,l2,l3,l4)
-
-
-
+"""
 
 # sample deque
 """

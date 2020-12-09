@@ -31,13 +31,13 @@ BATCH_SIZE = args.BATCH_SIZE
 MEMORY_SIZE = args.MEMORY_SIZE
 
 #============== initial
-env_name = 'Breakout-v0'
+env_name = 'Pong-v0'
 env = gym.make(env_name)
 
 
 N_ACT = env.action_space.n
 N_OB  = env.observation_space.shape
-
+pdf.set_trace()
 #============= make dir path for log and figure
 
 ROOT_DIR = "../../gym_graph"
