@@ -4,7 +4,9 @@ import numpy as np
 from collections import deque
 import random
 class DQN_Agent:
-    def __init__(self, N_ACT, N_OB, MEMORY_SIZE = 2000,BATCH_SIZE = 32, EPSILON = 0.3, GAMMA=0.9, EPSILON_DC = 0.9997):
+    def __init__(self, N_ACT, N_OB, \
+                 MEMORY_SIZE = 2000,BATCH_SIZE = 32, WRAPPER_SIZE = 4, \
+                 EPSILON = 0.3, GAMMA=0.9, EPSILON_DC = 0.9997):
         self.N_ACT   = N_ACT
         self.N_OB    = N_OB
         
