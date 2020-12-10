@@ -1,3 +1,0 @@
-Epoch 0 - average rewards 0.008982035928143712 with step 334
-Epoch 1 - average rewards 0.0 with step 172
-Final: ave rewards - 0.0, step - 10000
