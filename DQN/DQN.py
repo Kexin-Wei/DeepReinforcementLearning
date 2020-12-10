@@ -31,13 +31,12 @@ BATCH_SIZE = args.BATCH_SIZE
 MEMORY_SIZE = args.MEMORY_SIZE
 
 #============== initial
-env_name = 'Pong-v0'
+env_name = 'Breakout-v0'
 env = gym.make(env_name)
-
 
 N_ACT = env.action_space.n
 N_OB  = env.observation_space.shape
-pdf.set_trace()
+
 #============= make dir path for log and figure
 
 ROOT_DIR = "../../gym_graph"
@@ -80,8 +79,7 @@ for ep in range(EPOCHS):
         ob_next, reward, done, info = env.step(act)
             # reward modified
             # reward = reward if done else -1
-        reward = reward if reward else -1
-        
+        reward = 200 if reward else -1
         # memorize: sars(a) : [ob, act, reward, ob_next, done]
         agent.memorize([ob, act, reward, ob_next, done])
         
