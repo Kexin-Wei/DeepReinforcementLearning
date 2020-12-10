@@ -367,8 +367,11 @@ for ep in range(EPOCHS):
     reward_list = []
     step = 0
     ob = env.reset()
-    agent.EPSILON *=agent.EPSILON_DECAY
     
+    ob, reward, done,info = env.step(1) #fire
+    
+    agent.EPSILON *=agent.EPSILON_DECAY
+
     #======================================================
     while(1):
         png_save(DIR_PNG,env,step)
