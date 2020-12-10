@@ -26,22 +26,23 @@ import argparse
 import random
 from collections import deque
 from IPython.core.debugger import set_trace
+import pdb
 
 
 parser = argparse.ArgumentParser(description='Chang parameter for DQN')
 parser.add_argument('-ep', '--EPOCHS',        type=int,   default=2000,   help="change epochs")
 
 parser.add_argument('-g',  '--GAMMA',         type=float, default=0.9,    help="change gamma")
-parser.add_argument('-e',  '--EPSILON',       type=float, default=0.3,    help="change epsilon")
+parser.add_argument('-e',  '--EPSILON',       type=float, default=1.0,    help="change epsilon")
 parser.add_argument('-ed', '--EPSILON_DECAY', type=float, default=0.9997, help="change epsilon decay")
 
-parser.add_argument('-lr', '--LEARNING_RATE', type=float, default=0.01,   help="change learning rate")
+parser.add_argument('-lr', '--LEARNING_RATE', type=float, default=0.001,   help="change learning rate")
 
 parser.add_argument('-b',  '--BATCH_SIZE',    type=int,   default=64,     help="change batch size in train")
-parser.add_argument('-m',  '--MEMORY_SIZE',   type=int,   default=50_000,   help="change memorysize")
+parser.add_argument('-m',  '--MEMORY_SIZE',   type=int,   default=50000,   help="change memorysize")
 
 
-parser.add_argument('-mp', '--MODEL_UPDATE_STEP',   type=int,   default=2000,  help="change model update step")
+parser.add_argument('-mp', '--MODEL_UPDATE_STEP',   type=int,   default=4000,  help="change model update step")
 parser.add_argument('-ms', '--MEMORY_SAMPLE_START', type=float, default=0.2,   help="change memory sample start as ratio of memory size")
 parser.add_argument('-w',  '--WRAPPER_SIZE',        type=int,   default=4,     help="change wrapper size")
 
@@ -226,11 +227,14 @@ class Agent(Replay,CNN):
             batch_q_new.append(q)
             
         self.STEP +=1
-        self.model.fit(batch_state,np.array(batch_q_new),batch_size = self.BATCH_SIZE, verbose = 0)
+        history = self.model.fit(batch_state,np.array(batch_q_new),batch_size = self.BATCH_SIZE, verbose = 0)
+        pdb.set_trace()
+        return
         
     def target_model_update(self):
         if self.STEP < self.MODEL_UPDATE_STEP:
             return
+        pdb.set_trace()
         self.STEP = 0
         self.target_model.set_weights(self.model.get_weights())
 
@@ -385,7 +389,7 @@ for ep in range(EPOCHS):
         state_next(ob_next)
         
         agent.memo_append([state.packup(), act, reward, state_next.packup(), done])
-        agent.train()
+        loss = agent.train()
         agent.target_model_update()
 
         ob = ob_next
