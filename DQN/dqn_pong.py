@@ -32,10 +32,10 @@ from dqn_model import CNN, ObWrapper, Agent
 from gif_util import gif_save, png_save
 
 class Args:
-    EPOCHS   = 2
+    EPOCHS   = 500
     
     GAMMA    = 0.9
-    EPSILON  = 0.3
+    EPSILON  = 1.0
     EPSILON_DECAY  = 0.9997
     EPSILON_END    = 0.02
     
@@ -149,7 +149,8 @@ for ep in range(EPOCHS):
     
     ob, reward, done,info = env.step(1) #fire
     
-    agent.EPSILON *=agent.EPSILON_DECAY
+    if agent.EPSILON > EPSILON_END:
+        agent.EPSILON *=agent.EPSILON_DECAY
     
     log_file = open(DIR+'/log.txt','a')
 
