@@ -1,1 +1,0 @@
-Epoch 0 - average rewards -0.018666666666666668 - step 1125
