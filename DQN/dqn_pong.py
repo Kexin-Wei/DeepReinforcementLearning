@@ -43,7 +43,7 @@ parser.add_argument('-m',  '--MEMORY_SIZE',   type=int,   default=50000,   help=
 
 
 parser.add_argument('-mp', '--MODEL_UPDATE_STEP',   type=int,   default=4000,  help="change model update step")
-parser.add_argument('-ms', '--MEMORY_SAMPLE_START', type=float, default=0.2,   help="change memory sample start as ratio of memory size")
+parser.add_argument('-ms', '--MEMORY_SAMPLE_START', type=float, default=0.01,   help="change memory sample start as ratio of memory size")
 parser.add_argument('-w',  '--WRAPPER_SIZE',        type=int,   default=4,     help="change wrapper size")
 
 args = parser.parse_args()
@@ -80,7 +80,7 @@ class ObWrapper:
         self.s = deque([],maxlen = WRAPPER_SIZE) #wrapper how many frame together
         
     def __call__(self,ob):
-        self.s.append(cv2.cvtColor(ob,cv2.COLOR_BGR2GRAY)[::2,::2][17:97,:])
+        self.s.append(cv2.cvtColor(ob,cv2.COLOR_BGR2GRAY)[::2,::2][17:97,:]/255.0)
 
     def __len__(self):
         return len(self.s)
@@ -228,13 +228,11 @@ class Agent(Replay,CNN):
             
         self.STEP +=1
         history = self.model.fit(batch_state,np.array(batch_q_new),batch_size = self.BATCH_SIZE, verbose = 0)
-        pdb.set_trace()
-        return
+        return history.history
         
     def target_model_update(self):
         if self.STEP < self.MODEL_UPDATE_STEP:
             return
-        pdb.set_trace()
         self.STEP = 0
         self.target_model.set_weights(self.model.get_weights())
 
@@ -338,14 +336,14 @@ reward_summary = {
     'sum':[]
 }
 
-ROOT_DIR = '../../test_DQN'
+ROOT_DIR = 'test_DQN'
 DIR = os.path.join(ROOT_DIR,datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 try:
     os.makedirs(DIR)
 except:
     pass
 
-log_file = open(DIR+'/log.txt','w')
+
 
 state      = ObWrapper(WRAPPER_SIZE=WRAPPER_SIZE)
 state_next = ObWrapper(WRAPPER_SIZE=WRAPPER_SIZE)
@@ -375,7 +373,11 @@ for ep in range(EPOCHS):
     ob, reward, done,info = env.step(1) #fire
     
     agent.EPSILON *=agent.EPSILON_DECAY
-
+    
+    log_file = open(DIR+'/log.txt','a')
+    loss_file = open(DIR+'/loss.txt','a')
+    loss =[]
+    accuracy = []
     #======================================================
     while(1):
         png_save(DIR_PNG,env,step)
@@ -389,17 +391,21 @@ for ep in range(EPOCHS):
         state_next(ob_next)
         
         agent.memo_append([state.packup(), act, reward, state_next.packup(), done])
-        loss = agent.train()
+        history = agent.train()
         agent.target_model_update()
-
+        if history:
+            loss.append(history['loss'][0])
+            accuracy.append(history['accuracy'][0])
+        
         ob = ob_next
         step += 1
         reward_list.append(reward)
         
         if done:
-            out = "Epoch {} - average rewards {} with step {}".format(ep,sum(reward_list)/len(reward_list),step)
+            out = "Epoch {} - average rewards {} - step {}".format(ep,sum(reward_list)/len(reward_list),step)
             print(out)
             log_file.write(out+"\n")
+            loss_file.write("Epoch {} - ave loss {} - ave accuracy {}\n".format(ep,sum(loss)/len(loss),sum(accuracy)/len(accuracy)))
             reward_summary['max'].append(max(reward_list))
             reward_summary['min'].append(min(reward_list))
             reward_summary['sum'].append(sum(reward_list))
@@ -413,6 +419,7 @@ for ep in range(EPOCHS):
 
 
 log_file.close()
+loss_file.close()
 #=============== Show the reward every ep
 print('Show the reward every ep')
 plt.figure()
