@@ -29,51 +29,28 @@ from IPython.core.debugger import set_trace
 import pdb
 
 
-parser = argparse.ArgumentParser(description='Chang parameter for DQN')
-parser.add_argument('-ep', '--EPOCHS',        type=int,   default=2000,   help="change epochs")
+# parser = argparse.ArgumentParser(description='Chang parameter for DQN')
+# parser.add_argument('-ep', '--EPOCHS',        type=int,   default=2000,   help="change epochs")
 
-parser.add_argument('-g',  '--GAMMA',         type=float, default=0.9,    help="change gamma")
-parser.add_argument('-e',  '--EPSILON',       type=float, default=1.0,    help="change epsilon")
-parser.add_argument('-ed', '--EPSILON_DECAY', type=float, default=0.9997, help="change epsilon decay")
+# parser.add_argument('-g',  '--GAMMA',         type=float, default=0.9,    help="change gamma")
+# parser.add_argument('-e',  '--EPSILON',       type=float, default=1.0,    help="change epsilon")
+# parser.add_argument('-ed', '--EPSILON_DECAY', type=float, default=0.9997, help="change epsilon decay")
 
-parser.add_argument('-lr', '--LEARNING_RATE', type=float, default=0.001,   help="change learning rate")
+# parser.add_argument('-lr', '--LEARNING_RATE', type=float, default=0.001,   help="change learning rate")
 
-parser.add_argument('-b',  '--BATCH_SIZE',    type=int,   default=64,     help="change batch size in train")
-parser.add_argument('-m',  '--MEMORY_SIZE',   type=int,   default=50000,   help="change memorysize")
+# parser.add_argument('-b',  '--BATCH_SIZE',    type=int,   default=64,     help="change batch size in train")
+# parser.add_argument('-m',  '--MEMORY_SIZE',   type=int,   default=50000,   help="change memorysize")
 
 
-parser.add_argument('-mp', '--MODEL_UPDATE_STEP',   type=int,   default=4000,  help="change model update step")
-parser.add_argument('-ms', '--MEMORY_SAMPLE_START', type=float, default=0.01,   help="change memory sample start as ratio of memory size")
-parser.add_argument('-w',  '--WRAPPER_SIZE',        type=int,   default=4,     help="change wrapper size")
+# parser.add_argument('-mp', '--MODEL_UPDATE_STEP',   type=int,   default=4000,  help="change model update step")
+# parser.add_argument('-ms', '--MEMORY_SAMPLE_START', type=float, default=0.01,   help="change memory sample start as ratio of memory size")
+# parser.add_argument('-w',  '--WRAPPER_SIZE',        type=int,   default=4,     help="change wrapper size")
 
-args = parser.parse_args()
+# args = parser.parse_args()
 
-# ## Class
-# - ObWrapper as env support
-#   - ob->state
-#   - function:
-#     - wrapper_append(ob)
-#     - wrapper_len()
-#     - wrapper_packup()
-# - Replay
-#   - sample memory for train
-#   - function:
-#     - mome_append(a_set_memory)
-#     - sample()
-# - CNN
-#   - create a cnn refer to dqn paper
-# - Agent 
-#   - Replay
-#   - CNN
 
-# ### ObWrapper Class
 
 # In[3]:
-
-
-# make sure import deque from collections 
-# and opencv(cv2)
-# and numpy as np
 class ObWrapper:
     def __init__(self, WRAPPER_SIZE = 4 ):
         self.WRAPPER_SIZE = WRAPPER_SIZE
@@ -420,6 +397,7 @@ for ep in range(EPOCHS):
 
 
 log_file.close()
+loss_file.close()
 #=============== Show the reward every ep
 print('Show the reward every ep')
 plt.figure()
