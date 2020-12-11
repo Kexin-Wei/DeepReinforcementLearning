@@ -1,7 +1,7 @@
 import gym
 import pdb
 
-env = gym.make("Pong-v0")
+env = gym.make("Breakout-v0")
 ob = env.reset()
 
 for i in range(300):
