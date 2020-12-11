@@ -403,7 +403,6 @@ for ep in range(EPOCHS):
         
         if done:
             out = "Epoch {} - average rewards {} - step {}".format(ep,sum(reward_list)/len(reward_list),step)
-            print(out)
             log_file.write(out+"\n")
             loss_file.write("Epoch {} - ave loss {} - ave accuracy {}\n".format(ep,sum(loss)/len(loss),sum(accuracy)/len(accuracy)))
             reward_summary['max'].append(max(reward_list))

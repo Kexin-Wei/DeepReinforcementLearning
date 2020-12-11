@@ -304,7 +304,7 @@ WRAPPER_SIZE = args.WRAPPER_SIZE
 # In[11]:
 
 
-env_name = 'Pong-v0'
+env_name = 'Breakout-v0'
 env = gym.make(env_name)
 
 N_ACT = env.action_space.n
@@ -384,7 +384,7 @@ for ep in range(EPOCHS):
         
         state(ob)
         act = agent.get_action(state)
-        
+        act = int(input("Choose"))
         ob_next, reward, done, info = env.step(act)
         
         #reward = 10 if reward else -1
@@ -401,8 +401,9 @@ for ep in range(EPOCHS):
         step += 1
         reward_list.append(reward)
         
-        if done:
+        if done or info['ale.lives']<5:
             out = "Epoch {} - average rewards {} - step {}".format(ep,sum(reward_list)/len(reward_list),step)
+            print(out)
             log_file.write(out+"\n")
             if len(loss):
                 loss_file.write("Epoch {} - ave loss {} - ave accuracy {}\n".format(ep,sum(loss)/len(loss),sum(accuracy)/len(accuracy)))
@@ -518,7 +519,7 @@ while(1):
     step +=1
     ob = ob_next
     
-    if done:
+    if done or info['ale.lives']<5:
         out = 'Final: ave rewards - {}, step - {}\n'.format(sum(reward_list)/len(reward_list),step)
         log_file.writelines(out)
         print(out)
