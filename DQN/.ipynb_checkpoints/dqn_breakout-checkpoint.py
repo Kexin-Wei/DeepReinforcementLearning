@@ -147,7 +147,7 @@ for ep in range(EPOCHS):
     accuracy = []
     #======================================================
     while(1):
-        env.render()
+        # env.render()
         png_save(DIR_PNG,env,step)
         
         state(ob)
@@ -225,8 +225,9 @@ while (len(state_next) is not WRAPPER_SIZE):
 ob, reward, done,info = env.step(1) #fire
 
 while(1):
-    env.render()
-    pdb.set_trace()
+    #env.render()
+    
+    #pdb.set_trace()
     png_save(DIR_FINAL,env,step)
     state(ob)
     
