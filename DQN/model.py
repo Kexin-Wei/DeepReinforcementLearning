@@ -16,7 +16,8 @@ class ObWrapper:
         self.s = deque([],maxlen = WRAPPER_SIZE) #wrapper how many frame together
         
     def __call__(self,ob):
-        self.s.append(cv2.cvtColor(ob,cv2.COLOR_BGR2GRAY)[::2,::2][17:97,:]/255.0)
+        gray = cv2.cvtColor(ob,cv2.COLOR_BGR2GRAY)
+        self.s.append(cv2.resize(gray,(84,110),cv2.INTER_NEAREST)[16:100,:])
 
     def __len__(self):
         return len(self.s)
@@ -26,13 +27,14 @@ class ObWrapper:
             return print("Wrapper too small, unpackable")
         a = np.array([self.s[i] for i in range(self.WRAPPER_SIZE)])
         b = np.transpose(a,(1,2,0))  # or b = np.einsum('ijk->jki',a)
-        return b.reshape(-1,80,80,self.WRAPPER_SIZE)
+        s1,s2 = self.s[0].shape
+        return b.reshape(-1,s1,s2,self.WRAPPER_SIZE)
 
 
 # make sure import random
 # and deque from collections
 class Replay:
-    def __init__(self, MEMORY_SIZE = 50_000, BATCH_SIZE = 64):
+    def __init__(self, MEMORY_SIZE = 5000, BATCH_SIZE = 64):
         self.BATCH_SIZE = BATCH_SIZE
         self.MEMORY_SIZE = MEMORY_SIZE
         self.memory = deque([],maxlen = MEMORY_SIZE)
@@ -62,7 +64,7 @@ class CNN:
         # N_OB: frame for weight, height, color_channel
         # -> backup to n frame : weight, height, WRAPPER_SIZE
         
-        self.INPUT_SIZE  = self.input_size([80,80], WRAPPER_SIZE)
+        self.INPUT_SIZE  = self.input_size([84,84], WRAPPER_SIZE)
         self.OUTPUT_SIZE = N_ACT
         self.LEARNING_RATE = LEARNING_RATE
         self.model = self.create_cnn()
@@ -80,7 +82,7 @@ class CNN:
             tf.keras.layers.Dense(self.OUTPUT_SIZE, activation = 'linear'),
         ])
         model.compile(
-            loss = 'huber_loss',
+            loss = 'mse',
             optimizer = tf.keras.optimizers.Adam(learning_rate=self.LEARNING_RATE),
             metrics   = ['accuracy']
         )
