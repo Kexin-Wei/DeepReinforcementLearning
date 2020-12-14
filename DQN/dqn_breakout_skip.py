@@ -23,25 +23,25 @@ import random
 import pdb
 from collections import deque
 
-from model import CNN, ObWrapper, Agent
-from gif_util import gif_save, png_save
+from .model import  ObWrapper, Agent
+from .gif_util import gif_save, png_save
 
 
 class Args:
-    EPOCHS   = 5
+    EPOCHS   = 500
     
     GAMMA    = 0.9
     EPSILON  = 1.0
-    EPSILON_DECAY  = 0.97
-    EPSILON_END    = 0.02
+    EPSILON_DECAY  = 0.997
+    EPSILON_END    = 0.1
     
     LEARNING_RATE = 0.001
     
     BATCH_SIZE  = 32
-    MEMORY_SIZE = 5000
+    MEMORY_SIZE = 10000
 
-    MODEL_UPDATE_STEP   = 100
-    MEMORY_SAMPLE_START = 0.1
+    MODEL_UPDATE_STEP   = 1000
+    MEMORY_SAMPLE_START = 0.05
     
     WRAPPER_SIZE = 4
 
@@ -108,7 +108,10 @@ reward_summary = {
     'ave':[],
     'sum':[]
 }
-
+history_summary = {
+    'loss':[],
+    'accuracy':[]
+}
 ROOT_DIR = '../test_break'
 DIR = os.path.join(ROOT_DIR,datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 try:
@@ -116,43 +119,50 @@ try:
 except:
     pass
 
-DIR_PNG = os.path.join(DIR,"temp_png")
+PNG_NAME = "temp_png"
+DIR_PNG = os.path.join(DIR,PNG_NAME)
+
+
+log_file = open(DIR+'/log.txt','a')
+log_file.write("EPOCHS:{}, GAMMA:{}, EPSILON:{}, EPSILON_DECAY:{}, EPSILON_END:{}, LEARNING_RATE:{}\n".format(EPOCHS,GAMMA,EPSILON,EPSILON_DECAY,EPSILON_END,LEARNING_RATE))
+log_file.write("BATCH_SIZE:{}, MEMORY_SIZE:{}, MODEL_UPDATE_STEP:{}, MEMORY_SAMPLE_START:{}, WRAPPER_SIZE:{}\n".format(BATCH_SIZE,MEMORY_SIZE,MODEL_UPDATE_STEP,MEMORY_SAMPLE_START,WRAPPER_SIZE))
+log_file.close()
 
 # =========================================================
 for ep in range(EPOCHS):
     
+    if agent.EPSILON*agent.EPSILON_DECAY > EPSILON_END:
+        agent.EPSILON *=agent.EPSILON_DECAY
+    else:
+        agent.EPSILON = EPSILON_END
     
     os.mkdir(DIR_PNG) 
-    
-    reward_list = []
-    step = 0
-    ob = env.reset()
-    
-    # feed  4 in obwrapper
-    state      = ObWrapper(WRAPPER_SIZE=WRAPPER_SIZE)
-    state_next = ObWrapper(WRAPPER_SIZE=WRAPPER_SIZE)
-    state_next(ob)
-    while (len(state_next) is not WRAPPER_SIZE):
-        state(ob)
-        state_next(ob)
-
-    ob, reward, done,info = env.step(1) #fire
-    
-    if agent.EPSILON > EPSILON_END:
-        agent.EPSILON *=agent.EPSILON_DECAY
-    
     log_file = open(DIR+'/log.txt','a')
 
-    loss =[]
-    accuracy = []
+    loss        = []
+    accuracy    = []
+    reward_list = []
+    step       = 0
+    act_repeat = 0
+
+    ob = env.reset()
     #======================================================
     while(1):
         # env.render()
         png_save(DIR_PNG,env,step)
         
+        
+        if act_repeat == 0:
+            if step ==0: 
+                act = 1 #fire
+            else:
+                act = agent.get_action(state)
+            agent.memo_append([state.packup(), act, reward, state_next.packup(), done])
+            act_repeat = 4
+        else:
+            act_repeat -= 1                   
         state(ob)
         act = agent.get_action(state)
-        
         ob_next, reward, done, info = env.step(act)
         #reward = 10 if reward else -1
         state_next(ob_next)
@@ -172,22 +182,25 @@ for ep in range(EPOCHS):
         reward_list.append(reward)
         
         if done or info['ale.lives'] < 5:
-            out = "Epoch {}\taverage rewards: {}\tstep: {}\t".format(ep,sum(reward_list)/len(reward_list),step)
-            print(out)
-            log_file.write("\n"+out)
-            if len(loss):
-                out = "ave loss: {}\tave accuracy: {}".format(ep,sum(loss)/len(loss),sum(accuracy)/len(accuracy))
-                log_file.write(out)
             reward_summary['max'].append(max(reward_list))
             reward_summary['min'].append(min(reward_list))
             reward_summary['sum'].append(sum(reward_list))
             reward_summary['ave'].append(sum(reward_list)/len(reward_list))
+            
+            out = "\nEpoch {} \tepsilon: {} \tsum rewards: {} \tstep: {} \t".format(ep,agent.EPSILON,reward_summary['sum'][-1],step)
+            print(out,end=" ")
+            log_file.write(out)
+            if len(loss):
+                history_summary['loss'].append(sum(loss)/len(loss))
+                history_summary['accuracy'].append(sum(accuracy)/len(accuracy))
+                
+                out = "ave loss: {} \tave accuracy: {}".format(history_summary['loss'][-1],history_summary['accuracy'][-1])
+                log_file.write(out)
+                print(out,end=" ")
             break
     
-    del state
-    del state_next
     log_file.close()
-    gif_save(DIR,"temp_png",ep,sum(reward_list)/len(reward_list))
+    gif_save(DIR,PNG_NAME,ep,sum(reward_list)/len(reward_list))
 
 #=============== Show the reward every ep
 print('Show the reward every ep')
@@ -198,6 +211,11 @@ plt.plot(reward_summary['ave'],label='ave')
 plt.plot(reward_summary['sum'],label='sum')
 plt.legend(loc=2)
 plt.savefig(DIR + '/rewards.png')
+plt.figure()
+plt.plot(history_summary['loss'],label='loss')
+plt.plot(history_summary['accuracy'],label='accuracy')
+plt.legend(loc=2)
+plt.savefig(DIR + '/loss_accuracy.png')
    
 
 print('Test the final round')
