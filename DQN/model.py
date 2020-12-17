@@ -10,25 +10,24 @@ from collections import deque
 # make sure import deque from collections 
 # and opencv(cv2)
 # and numpy as np
-class ObWrapper:
+
+class FrameStack:
     def __init__(self, WRAPPER_SIZE = 4 ):
         self.WRAPPER_SIZE = WRAPPER_SIZE
         self.s = deque([],maxlen = WRAPPER_SIZE) #wrapper how many frame together
         
     def __call__(self,ob):
         gray = cv2.cvtColor(ob,cv2.COLOR_BGR2GRAY)
-        self.s.append(cv2.resize(gray,(84,110),cv2.INTER_NEAREST)[16:100,:])
+        self.s.append(cv2.resize(gray,(84,84),cv2.INTER_AREA))
 
     def __len__(self):
         return len(self.s)
     
-    def packup(self):
+    @property
+    def array(self):
         if len(self.s) < self.WRAPPER_SIZE:
             return print("Wrapper too small, unpackable")
-        a = np.array([self.s[i] for i in range(self.WRAPPER_SIZE)])
-        b = np.transpose(a,(1,2,0))  # or b = np.einsum('ijk->jki',a)
-        s1,s2 = self.s[0].shape
-        return b.reshape(-1,s1,s2,self.WRAPPER_SIZE)
+        return np.expand_dims(np.dstack(self.s),0)
 
 
 # make sure import random
@@ -74,15 +73,16 @@ class CNN:
     
     def create_cnn(self):
         model = tf.keras.models.Sequential([
-            tf.keras.layers.Conv2D(16,8,strides = 4,input_shape =self.INPUT_SIZE,\
+            tf.keras.layers.Conv2D(32,8,strides = 4,input_shape =self.INPUT_SIZE,\
                                    activation = 'relu'),
-            tf.keras.layers.Conv2D(32,4,strides = 2, activation = 'relu'),
+            tf.keras.layers.Conv2D(64,4,strides = 2, activation = 'relu'),
+            tf.keras.layers.Conv2D(64,3,strides = 1, activation = 'relu'),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(256,               activation = 'relu'),
             tf.keras.layers.Dense(self.OUTPUT_SIZE, activation = 'linear'),
         ])
         model.compile(
-            loss = 'mse',
+            loss = 'huber_loss',
             optimizer = tf.keras.optimizers.RMSprop(learning_rate=self.LEARNING_RATE),
             metrics   = ['accuracy']
         )
@@ -94,7 +94,6 @@ class Agent(Replay,CNN):
     def __init__(self, N_ACT,N_OB,                 \
                     GAMMA   = 0.9,                 \
                     EPSILON = 0.3,                 \
-                    EPSILON_DECAY = 0.997,         \
                     MODEL_UPDATE_STEP   = 200,    \
                     MEMORY_SAMPLE_START = 20,     \
                     LEARNING_RATE = 0.01,          \
@@ -112,7 +111,6 @@ class Agent(Replay,CNN):
         self.N_ACT   = N_ACT
         self.GAMMA   = GAMMA
         self.EPSILON = EPSILON
-        self.EPSILON_DECAY = EPSILON_DECAY
 
         self.target_model = self.create_cnn()
         self.target_model.set_weights(self.model.get_weights())
@@ -125,15 +123,13 @@ class Agent(Replay,CNN):
     
     def get_q_value(self, state):
         # state is obwrapper.packup
-
-        return self.model.predict(state.packup())
+        return self.model.predict(state)
     
     
     def get_action(self,state): # get action with epsilon greedy
-        if np.random.rand() < self.EPSILON:
-            return np.random.randint(self.N_ACT),0
-            
         q = self.get_q_value(state)
+        if np.random.rand() < self.EPSILON:            
+            return np.random.randint(self.N_ACT), np.amax(q)
         return np.argmax(q), np.amax(q)
     
     
@@ -160,6 +156,7 @@ class Agent(Replay,CNN):
             
             q = batch_q[index]
             q[action] = q_new
+            # TODO: maybe add a q offset bound in [-1,1]
             batch_q_new.append(q)
             
         self.STEP +=1
