@@ -1,14 +1,30 @@
 import numpy as np
 import os
-os.environ.setdefault('PATH', '')
+#os.environ.setdefault('PATH', '')
 from collections import deque
 import gym
 from gym import spaces
 import cv2
 cv2.ocl.setUseOpenCL(False)
-from .wrappers import TimeLimit
 
+class TimeLimit(gym.Wrapper):
+    def __init__(self, env, max_episode_steps=None):
+        super(TimeLimit, self).__init__(env)
+        self._max_episode_steps = max_episode_steps
+        self._elapsed_steps = 0
 
+    def step(self, ac):
+        observation, reward, done, info = self.env.step(ac)
+        self._elapsed_steps += 1
+        if self._elapsed_steps >= self._max_episode_steps:
+            done = True
+            info['TimeLimit.truncated'] = True
+        return observation, reward, done, info
+
+    def reset(self, **kwargs):
+        self._elapsed_steps = 0
+        return self.env.reset(**kwargs)
+    
 class NoopResetEnv(gym.Wrapper):
     def __init__(self, env, noop_max=30):
         """Sample initial states by taking random number of no-ops on reset.
@@ -244,17 +260,17 @@ class LazyFrames(object):
             self._frames = None
         return self._out
 
-    def __array__(self, dtype=None):
+    def concatenate(self, dtype=None):
         out = self._force()
         if dtype is not None:
             out = out.astype(dtype)
         return out
 
     def __len__(self):
-        return len(self._force())
+        return self._force().shape[2]
 
     def __getitem__(self, i):
-        return self._force()[i]
+        return self._force()[:,:,i]
 
     def count(self):
         frames = self._force()
@@ -269,6 +285,7 @@ def make_atari(env_id, max_episode_steps=None):
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
     if max_episode_steps is not None:
+        print("what?")
         env = TimeLimit(env, max_episode_steps=max_episode_steps)
     return env
 
