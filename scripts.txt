@@ -3,4 +3,5 @@ sudo docker run -it -p 8888:8888 tensorflow/tensorflow:latest-gpu-jupyter
 # outdated 172.16.125.201
 # outdated 172.16.126.241
 # 172.16.126.99
-172.16.126.128
+# 172.16.126.128
+172.16.127.222

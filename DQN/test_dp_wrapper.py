@@ -45,7 +45,7 @@ for f in os.listdir(DIR_PNG):
 imageio.mimsave(os.path.join(ROOT_DIR,'4in1.gif'),images,fps=50)
 shutil.rmtree(DIR_PNG)
 # %%
-print(ob_next._frames[0].shape,act,reward,done,info)
+#print(ob_next._frames[0].shape,act,reward,done,info)
 print(ob_next[0].shape)
 print(ob_next._force().shape)
 print(len(ob_next))
