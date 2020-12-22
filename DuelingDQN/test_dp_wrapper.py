@@ -74,8 +74,8 @@ class Replay:
     def memo_append(self, ob, act,reward, ob_next, done):
         # a_set_memory = sars(a) : [ob, (act), reward, ob_next, done]
                                     
-        self.state_memo.append(ob)
-        self.state_next_memo.append(ob_next)        
+        self.state_memo.append(ob.concatenate())
+        self.state_next_memo.append(ob_next.concatenate())        
         self.act_memo.append(act)
         self.reward_memo.append(reward)
         self.done_memo.append(done)
@@ -118,4 +118,29 @@ batch_state, batch_act, batch_reward, batch_state_next, batch_done = memo.sample
 
 # %%
 print(batch_state.shape)
+# %%
+print(1-batch_done)
+#%%
+batch_q = np.random.randint(4,size=[32,4]).astype('float')
+batch_q_next = np.random.randint(4,size=[32,4]).astype('float')
+print(batch_q.shape)
+
+#  %%
+batch_q_new =np.copy(batch_q)
+max_action = np.argmax(batch_q,axis=1)
+batch_q_new[range(memo.BATCH_SIZE),batch_act] = batch_reward + (1-batch_done)*0.9*batch_q_next[range(memo.BATCH_SIZE),max_action]
+#%%
+n=3
+# %%
+print(batch_q_new[n])
+# %%
+print(batch_q[n],max_action[n])
+print(batch_q_next[n],batch_q_next[n,max_action[n]])
+# %%
+print(batch_reward[n]+(1-batch_done[n])*0.9*batch_q_next[n,max_action[n]])
+print(batch_q_new[n,batch_act[n]])
+print(batch_q[n,batch_act[n]])
+# %%
+
+
 # %%
