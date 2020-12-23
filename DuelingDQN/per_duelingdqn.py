@@ -1,5 +1,4 @@
-##%
-# 
+# %%
 import os
 import imageio
 import datetime
@@ -11,9 +10,14 @@ import numpy as np
 from collections import deque
 from dm_wrapper import make_env
 
+# %%
 class Args:
     FRAME_END   = 20_000
-    FRAME_T = FRAME_END/2
+    FRAME_T = FRAME_END*0.7
+    
+    ALPHA = 0.5
+    BETA  = 0.5
+    BASE  = 0.1
     
     GAMMA    = 0.99
 
@@ -36,10 +40,12 @@ class Args:
     # MODEL_UPDATE_STEP   = 100
 
 args = Args
+
 # %%
 class DDQN:
     # Reference:
     # https://github.com/EvolvedSquid/tutorials/blob/master/dqn/train_dqn.ipynb
+    # TODO: modify for importance sampling
     def __init__(self, N_ACT,N_OB,LEARNING_RATE = 0.01):
         self.INPUT_SIZE = N_OB
         self.N_ACT      = N_ACT
@@ -66,34 +72,63 @@ class DDQN:
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=self.LEARNING_RATE),
             loss = tf.keras.losses.Huber(),
-            metrics = [ 'accuracy']
+            metrics = ['accuracy']
         )
         return model
-# %%    
-class Replay:
-    def __init__(self, MEMORY_SIZE = 5000, BATCH_SIZE = 32):
+    
+# %%
+class PReplay:
+    # priorited replay buffer
+    def __init__(self, MEMORY_SIZE = 5000, \
+                       ALPHA = 0.5, \
+                       BETA = 0.5,  \
+                       BASE = 0.1,  \
+                       BATCH_SIZE = 64):
+        
         self.BATCH_SIZE  = BATCH_SIZE
         self.MEMORY_SIZE = MEMORY_SIZE
+        self.ALPHA = ALPHA
+        self.BETA  = BETA
+        self.BASE  = BASE
+        
         self.state_memo      = deque([],maxlen = MEMORY_SIZE)
         self.state_next_memo = deque([],maxlen = MEMORY_SIZE)
         self.act_memo    = deque([],maxlen = MEMORY_SIZE)
         self.reward_memo = deque([],maxlen = MEMORY_SIZE)
         self.done_memo   = deque([],maxlen = MEMORY_SIZE)
         
+        self.priority  = deque([],maxlen = MEMORY_SIZE)
+        self.prob      = deque([],maxlen = MEMORY_SIZE)
+        
     def memo_append(self, ob, act,reward, ob_next, done):
+        if len(self.priority) == 0:
+            self.priority.append(1)
+        else:            
+            self.priority.append(max(self.priority))
         # a_set_memory = sars(a) : [ob, (act), reward, ob_next, done]
-        # ob modify for dm_wrapper                                    
         self.state_memo.append(ob)
         self.state_next_memo.append(ob_next)        
         self.act_memo.append(act)
         self.reward_memo.append(reward)
         self.done_memo.append(done)
         
+        
     def memo_len(self):
         return len(self.state_memo)
         
+    def prob_update(self):
+        priority_alpha = np.power(np.array(self.priority),self.ALPHA)
+        self.prob = priority_alpha/np.sum(priority_alpha)
+        
+    def priority_update(self, error, batch_index):
+        priority_array = np.array(self.priority).astype('float') # somehow turn into int64
+        priority_array[batch_index] = np.abs(error) + self.BASE
+        self.priority = deque(priority_array.tolist(),maxlen = self.MEMORY_SIZE)
+        
     def sample(self):
-        batch_index = random.sample(range(self.memo_len()),self.BATCH_SIZE)
+        
+        self.prob_update()
+        batch_index = np.random.choice(range(self.memo_len()),self.BATCH_SIZE,p=self.prob,replace=False)
         
         batch_state      = np.array(self.state_memo)[batch_index]
         batch_state_next = np.array(self.state_next_memo)[batch_index]
@@ -101,10 +136,13 @@ class Replay:
         batch_reward     = np.array(self.reward_memo)[batch_index]
         batch_done       = np.array(self.done_memo)[batch_index]
         
-        return batch_state, batch_act, batch_reward, batch_state_next, batch_done
-# %%    
-class Agent(Replay,DDQN):
+        return batch_index, batch_state, batch_act, batch_reward, batch_state_next, batch_done
+
+class Agent(PReplay,DDQN):
     def __init__(self, N_ACT,N_OB,                 \
+                    ALPHA   = 0.5,                 \
+                    BETA = 0.5,                    \
+                    BASE =0.1,                     \
                     GAMMA   = 0.9,                 \
                     EPSILON = 1.0,                 \
                     MODEL_UPDATE_STEP   = 200,    \
@@ -113,7 +151,10 @@ class Agent(Replay,DDQN):
                     MEMORY_SIZE  = 10_000,         \
                     BATCH_SIZE   = 64 ):
 
-        Replay.__init__(self, MEMORY_SIZE = MEMORY_SIZE, \
+        PReplay.__init__(self, MEMORY_SIZE = MEMORY_SIZE, \
+                        ALPHA = ALPHA, \
+                        BETA = BETA, \
+                        BASE = BASE,\
                         BATCH_SIZE = BATCH_SIZE)
         
         DDQN.__init__(self, N_ACT,N_OB,\
@@ -150,24 +191,28 @@ class Agent(Replay,DDQN):
         #if the momery len > 0.2 memory size
         if self.memo_len() < self.MEMORY_SAMPLE_START:
             return
-        batch_state, batch_act, batch_reward, batch_state_next, batch_done = self.sample()
+        batch_index, batch_state, batch_act, batch_reward, batch_state_next, batch_done = self.sample()
         
         # model for q now
-        batch_q = self.model.predict(batch_state)
-        
+        batch_q = self.model.predict(batch_state) # [32,4]
         # target_model for max q
         batch_q_next = self.target_model.predict(batch_state_next)
         
         
-        batch_q_new = np.copy(batch_q)
+        batch_q_target = np.copy(batch_q)
         
-        batch_max_act = np.argmax(batch_q,axis=1)
+        batch_max_act = np.argmax(batch_q,axis=1) # [32]
         
-        batch_q_new[range(self.BATCH_SIZE),batch_act] = batch_reward + \
+        batch_q_target[range(self.BATCH_SIZE),batch_act] = batch_reward + \
             (1-batch_done)*0.9*batch_q_next[range(self.BATCH_SIZE),batch_max_act]
-            
+
+        error = (batch_q_target - batch_q)[range(self.BATCH_SIZE),batch_act]
+        
+        self.priority_update(error,batch_index)
+        # TODO: use weight to modify
+        history = self.model.fit(batch_state,batch_q_target,batch_size = self.BATCH_SIZE, verbose = 0)
+        
         self.STEP +=1
-        history = self.model.fit(batch_state,batch_q_new,batch_size = self.BATCH_SIZE, verbose = 0)
         return history.history
         
     def target_model_update(self):
@@ -175,11 +220,14 @@ class Agent(Replay,DDQN):
             return
         self.STEP = 0
         self.target_model.set_weights(self.model.get_weights())
-      
         
-# %%        
+# %%
 FRAME_END = args.FRAME_END
 FRAME_T  = args.FRAME_T
+
+ALPHA   = args.ALPHA
+BETA    = args.BETA
+BASE    = args.BASE
 
 GAMMA   = args.GAMMA
 
@@ -203,6 +251,7 @@ N_OB  = env.observation_space.shape # 84.84.4
 
 
 agent = Agent(N_ACT,N_OB, \
+              ALPHA = ALPHA, BETA = BETA, BASE = BASE,\
               GAMMA = GAMMA, EPSILON = EPSILON, \
               MODEL_UPDATE_STEP   = MODEL_UPDATE_STEP, \
               MEMORY_SAMPLE_START = MEMORY_SAMPLE_START, \
@@ -222,7 +271,7 @@ reward_summary = []
 
 # %%
 
-ROOT_DIR = '../test_ddqn_break'
+ROOT_DIR = '../test_per_ddqn_break'
 DIR = os.path.join(ROOT_DIR,datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 try:
     os.makedirs(DIR)
@@ -238,11 +287,11 @@ except:
 log_file = open(DIR+'/log.txt','a')
 log_file.write("FRAME_END:{}, FRAME_T:{}, GAMMA:{}, EPSILON:{},  EPSILON_END:{}, LEARNING_RATE:{}\n".format(FRAME_END,FRAME_T,GAMMA,EPSILON,EPSILON_END,LEARNING_RATE))
 log_file.write("BATCH_SIZE:{}, MEMORY_SIZE:{}, MODEL_UPDATE_STEP:{}, MEMORY_SAMPLE_START:{}\n".format(BATCH_SIZE,MEMORY_SIZE,MODEL_UPDATE_STEP,MEMORY_SAMPLE_START))
+log_file.write("ALPHA:{}, BETA:{}, BASE:{}\n".format(ALPHA,BETA,BASE))
 log_file.close()
 
 frame_sum = 0
 ep = 0
-
 # %%
 while(frame_sum<FRAME_END):
 
@@ -285,9 +334,9 @@ while(frame_sum<FRAME_END):
         if done:            
             break
     ep += 1
-    frame_sum +=frame
+    frame_sum += frame
     reward_summary.append(sum(reward_list))            
-    max_q_summary.append(np.max(max_q_list))
+    max_q_summary.append(max(max_q_list))
     
     out = "\nEpoch {} \tframe: {} \tframe_sum:{} \tepsilon: {:0.5f} \tsum_rewards: {} \tmax_q:{:0.3f} \t".format(
              ep,frame,frame_sum,agent.EPSILON,reward_summary[-1],max_q_summary[-1])
@@ -306,7 +355,8 @@ while(frame_sum<FRAME_END):
     if reward_summary[-1]:
         gifname=str(ep)+'_r_'+str(reward_summary[-1])
         imageio.mimsave(os.path.join(DIR_GIF,gifname+'.gif'),images,fps=55)
-
+        
+# %%
 #=============== Show the reward every ep
 print('Show the reward every ep')
 plt.figure()
@@ -326,6 +376,8 @@ plt.savefig(DIR + '/max_q.png')
 DIR_MODEL = os.path.join(DIR,'Model')
 os.mkdir(DIR_MODEL)
 agent.model.save(DIR_MODEL)
+
+# %%
 #==================================================
 print('Test the final round')
 # observe the final run
