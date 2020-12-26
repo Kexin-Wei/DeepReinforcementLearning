@@ -4,8 +4,8 @@ import os
 import imageio
 import datetime
 import random
+
 import matplotlib.pyplot as plt
-import tensorflow as tf
 import numpy as np
 
 from collections import deque
@@ -37,7 +37,7 @@ class Args:
 
 args = Args
 # %%
-class DDQN:
+"""class DDQN:
     # Reference:
     # https://github.com/EvolvedSquid/tutorials/blob/master/dqn/train_dqn.ipynb
     def __init__(self, N_ACT,N_OB,LEARNING_RATE = 0.01):
@@ -68,7 +68,8 @@ class DDQN:
             loss = tf.keras.losses.Huber(),
             metrics = [ 'accuracy']
         )
-        return model
+        return model"""
+class DDQN()
 # %%    
 class Replay:
     def __init__(self, MEMORY_SIZE = 5000, BATCH_SIZE = 32):

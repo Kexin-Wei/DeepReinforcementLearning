@@ -12,32 +12,33 @@ from dm_wrapper import make_env
 
 # %%
 class Args:
-    FRAME_END   = 20_000
-    FRAME_T = FRAME_END*0.7
+    FRAME_END   = 1_000_000
+    FRAME_T = 50_000
     
     ALPHA = 0.5
     BETA  = 0.5
     BASE  = 0.1
     
-    GAMMA    = 0.99
+    GAMMA = 0.99
 
     EPSILON      = 1.0
-    EPSILON_END  = 0.01
+    EPSILON_END  = 0.1
     
     
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.00025
     
     BATCH_SIZE  = 32
     
     MEMORY_SIZE = 100_000
     MEMORY_SAMPLE_START = 1_000
     
-    MODEL_UPDATE_STEP   = 100
+    MODEL_TRAIN_STEP    = 4
+    MODEL_UPDATE_STEP   = 10000/MODEL_TRAIN_STEP
     
     # FRAME_END   = 500
     # FRAME_T = 100
     # MEMORY_SAMPLE_START = 100
-    # MODEL_UPDATE_STEP   = 100
+    # MODEL_UPDATE_STEP   = 4
 
 args = Args
 
@@ -70,7 +71,7 @@ class DDQN:
             ])
         model = tf.keras.Model(input_layer,q_output)
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.LEARNING_RATE),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=self.LEARNING_RATE, clipnorm = 1.0),
             loss = tf.keras.losses.Huber(),
             metrics = ['accuracy']
         )
@@ -145,6 +146,7 @@ class Agent(PReplay,DDQN):
                     BASE =0.1,                     \
                     GAMMA   = 0.9,                 \
                     EPSILON = 1.0,                 \
+                    MODEL_TRAIN_STEP = 4,                \
                     MODEL_UPDATE_STEP   = 200,    \
                     MEMORY_SAMPLE_START = 20,     \
                     LEARNING_RATE = 0.01,          \
@@ -168,7 +170,10 @@ class Agent(PReplay,DDQN):
         self.target_model.set_weights(self.model.get_weights())
 
         self.MODEL_UPDATE_STEP = MODEL_UPDATE_STEP
-        self.STEP = 0
+        self.MODEL_TRAIN_STEP  = MODEL_TRAIN_STEP
+        
+        self.UPDATE_STEP = 0
+        self.TRAIN_STEP = 0
         
         self.MEMORY_SAMPLE_START = MEMORY_SAMPLE_START
         
@@ -191,6 +196,12 @@ class Agent(PReplay,DDQN):
         #if the momery len > 0.2 memory size
         if self.memo_len() < self.MEMORY_SAMPLE_START:
             return
+        
+        if self.TRAIN_STEP < self.MODEL_TRAIN_STEP:
+            self.TRAIN_STEP+=1
+            return
+        
+        self.TRAIN_STEP = 0
         batch_index, batch_state, batch_act, batch_reward, batch_state_next, batch_done = self.sample()
         
         # model for q now
@@ -212,13 +223,13 @@ class Agent(PReplay,DDQN):
         # TODO: use weight to modify
         history = self.model.fit(batch_state,batch_q_target,batch_size = self.BATCH_SIZE, verbose = 0)
         
-        self.STEP +=1
+        self.UPDATE_STEP +=1
         return history.history
         
     def target_model_update(self):
-        if self.STEP < self.MODEL_UPDATE_STEP:
+        if self.UPDATE_STEP < self.MODEL_UPDATE_STEP:
             return
-        self.STEP = 0
+        self.UPDATE_STEP = 0
         self.target_model.set_weights(self.model.get_weights())
         
 # %%
@@ -241,6 +252,7 @@ BATCH_SIZE = args.BATCH_SIZE
 MEMORY_SIZE = args.MEMORY_SIZE
 MEMORY_SAMPLE_START = args.MEMORY_SAMPLE_START
 
+MODEL_TRAIN_STEP  = args.MODEL_TRAIN_STEP
 MODEL_UPDATE_STEP = args.MODEL_UPDATE_STEP
 
 # %%
@@ -253,6 +265,7 @@ N_OB  = env.observation_space.shape # 84.84.4
 agent = Agent(N_ACT,N_OB, \
               ALPHA = ALPHA, BETA = BETA, BASE = BASE,\
               GAMMA = GAMMA, EPSILON = EPSILON, \
+              MODEL_TRAIN_STEP = MODEL_TRAIN_STEP,   \
               MODEL_UPDATE_STEP   = MODEL_UPDATE_STEP, \
               MEMORY_SAMPLE_START = MEMORY_SAMPLE_START, \
               LEARNING_RATE = LEARNING_RATE, \
@@ -335,6 +348,7 @@ while(frame_sum<FRAME_END):
             break
     ep += 1
     frame_sum += frame
+    
     reward_summary.append(sum(reward_list))            
     max_q_summary.append(max(max_q_list))
     
