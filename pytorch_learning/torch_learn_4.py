@@ -18,7 +18,12 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 # %%
-print(platform)
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+    print("Running on GPU")
+else:
+    device = torch.device('cpu')
+    print("Running on CPU")
 # %%
 ROOT = os.path.expanduser('~')
 DIR  = os.path.join(ROOT,"Downloads/dogs-vs-cats-redux-kernels-edition")
@@ -40,6 +45,7 @@ for f in os.listdir(TRAIN_DIR):
     break
 """
 # %%
+print("Importing data...")
 data = []
 cat_num = 0
 dog_num = 0
@@ -51,7 +57,32 @@ for f in os.listdir(TRAIN_DIR):
     else: dog_num+=1
     data.append([image,label])
     
-print(len(data),cat_num,dog_num)
+print(f"{len(data)} Images with cats {cat_num} and dogs {dog_num}")
+print("Spliting into Train and Valida set...")
+def split(data,ratio):
+    l = len(data)
+    random.shuffle(data)
+    split_index = int(l*(1-ratio))
+    train = data[:split_index]
+    valid = data[split_index:]
+    
+    train_feature, train_label = [],[]
+    valid_feature, valid_label = [],[]
+    for i in train:
+        train_feature.append(i[0])
+        train_label.append(i[1])
+    for i in valid:
+        valid_feature.append(i[0])
+        valid_label.append(i[1])
+    
+    train_feature = torch.Tensor(train_feature)/255.0
+    train_label   = torch.Tensor(train_label).type(torch.LongTensor)
+    valid_feature = torch.Tensor(valid_feature)/255.0
+    valid_label   = torch.Tensor(valid_label).type(torch.LongTensor)
+    return (train_feature,train_label),(valid_feature,valid_label)
+
+train,valid = split(data,0.2)
+print("Done\nStart training")
 # %%
 
 class CNN(nn.Module):
@@ -76,7 +107,7 @@ class CNN(nn.Module):
         
         if self._to_linear is None:
             shape =  x[0].shape
-            print(shape)
+            #print(shape)
             self._to_linear =shape[0]*shape[1]*shape[2] 
         return x
     
@@ -84,47 +115,18 @@ class CNN(nn.Module):
         x = self.convs(x)
         x = x.view(-1,self._to_linear)
         x = F.relu(self.fc1(x))
-        x = F.softmax(self.fc2(x),dim=1)
+        x = F.log_softmax(self.fc2(x),dim=1)
         return x
 
 # %%
-import torch.optim as optim
-
-optimizer = optim.Adam(net.parameters(),lr=0.001)
-
-loss_function = nn.NLLLoss()
-
-# %%
-def split(data,ratio):
-    l = len(data)
-    random.shuffle(data)
-    split_index = int(l*(1-ratio))
-    train = data[:split_index]
-    valid = data[split_index:]
-    
-    train_feature, train_label = [],[]
-    valid_feature, valid_label = [],[]
-    for i in train:
-        train_feature.append(i[0])
-        train_label.append(i[1])
-    for i in valid:
-        valid_feature.append(i[0])
-        valid_label.append(i[1])
-    
-    train_feature = torch.Tensor(train_feature)/255.0
-    train_label   = torch.Tensor(train_label).type(torch.LongTensor)
-    valid_feature = torch.Tensor(valid_feature)/255.0
-    valid_label   = torch.Tensor(valid_label).type(torch.LongTensor)
-    return (train_feature,train_label),(valid_feature,valid_label)
-
-train,valid = split(data,0.2)
-#print(len(train[1]),len(valid[1]))
-
-# %%
-net = CNN()
-print(net)
+net = CNN().to(device)
+#print(net)
 BATCH_SIZE = 100
-EPOCHS = 10
+EPOCHS = 15
+
+import torch.optim as optim
+optimizer = optim.Adam(net.parameters(),lr=0.001)
+loss_function = nn.NLLLoss()
 # %%
 for ep in range(EPOCHS):
     loss_sum = 0
@@ -133,8 +135,8 @@ for ep in range(EPOCHS):
     
     tqdm_bar = tqdm(range(0,len(train[1]),BATCH_SIZE),desc=prefix)
     for i in tqdm_bar:
-        batch_feature = train[0][i:i+BATCH_SIZE].view(-1,1,IMAGE_SIZE,IMAGE_SIZE)
-        batch_label   = train[1][i:i+BATCH_SIZE]
+        batch_feature = train[0][i:i+BATCH_SIZE].view(-1,1,IMAGE_SIZE,IMAGE_SIZE).to(device)
+        batch_label   = train[1][i:i+BATCH_SIZE].to(device)
         
         net.zero_grad()
         
@@ -145,22 +147,23 @@ for ep in range(EPOCHS):
         optimizer.step()
         
         loss_sum += loss.item()
-    tqdm_bar.set_postfix_str(f"loss:{loss_sum}")
+        tqdm_bar.set_postfix_str(f"loss:{loss_sum}")
 # %%
+print("Done\nStart testing...")
 correct = 0
 total = 0
 with torch.no_grad():
     for i in range(len(valid[1])):
-        valid_predict = torch.argmax(net(valid[0][i].view(-1,1,IMAGE_SIZE,IMAGE_SIZE)))
+        valid_predict = torch.argmax(net(valid[0][i].view(-1,1,IMAGE_SIZE,IMAGE_SIZE).to(device)))
         if valid_predict == valid[1][i]:
             correct +=1 
-        total+=1   
-        
+        total+=1           
 accuracy = round(correct/total,3)
-print(accuracy)    
+print("Accuracy:",accuracy)    
 # %%
+print("Print img for testing")
 plt.imshow(valid[0][2])
 plt.axis('off')
-plt.title(classes[valid[0][2]])
+plt.title(classes[valid[1][2]])
 plt.show()
 # %%

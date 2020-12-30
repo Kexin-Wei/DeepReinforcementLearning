@@ -1,6 +1,5 @@
 # test for priority replay buffer
 #%%
-from DuelingDQN.duelingdqn import MEMORY_SIZE
 import numpy as np
 from collections import deque
 
