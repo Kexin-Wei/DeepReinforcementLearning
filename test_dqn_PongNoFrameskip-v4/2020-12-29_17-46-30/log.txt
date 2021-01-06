@@ -1,9 +1,0 @@
-FRAME_END:1000000.0
-EPSILON:1.0, EPSILON_END:0.02,EPSILON_DECAY:0.9995
-GAMMA: 0.99,  LEARNING_RATE:0.0001 
-MEMORY_SIZE:10000 ,MEMORY_SAMPLE_START:1000
-MODEL_UPDATE_STEP:1000, TRAIN_SKIP_STEP:1
-BATCH_SIZE:32
-
-Epoch: 1 	step: 814	frame_sum: 814	epsilon: 0.666	max_q: 1.759	mean_rewards: -21.000	sum_rewards: -21.000
-Epoch: 2 	step: 829	frame_sum: 1643	epsilon: 0.440	max_q: 3.175	mean_rewards: -20.500	sum_rewards: -20.000	ave_loss: 12.133037

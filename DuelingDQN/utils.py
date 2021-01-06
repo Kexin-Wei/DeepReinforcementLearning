@@ -1,5 +1,5 @@
 #%%
-from collections import deque
+from collections import deque,namedtuple
 import numpy as np
 
 import random
@@ -89,41 +89,28 @@ class DQN(nn.Module):
         x = self.fc2(x)
         return x
 # %%
-
+memory = namedtuple('Experience', ['state', 'action', 'reward','next_state','done'])
 class Replay:
     def __init__(self,MEMORY_SIZE = 5000, BATCH_SIZE = 32):
         self.BATCH_SIZE  = BATCH_SIZE
         self.MEMORY_SIZE = MEMORY_SIZE
         
-        self.state_memo      = deque([],maxlen = MEMORY_SIZE)
-        self.state_next_memo = deque([],maxlen = MEMORY_SIZE)
-        self.act_memo    = deque([],maxlen = MEMORY_SIZE)
-        self.reward_memo = deque([],maxlen = MEMORY_SIZE)
-        self.done_memo   = deque([],maxlen = MEMORY_SIZE)
+        self.memo = deque([],maxlen = MEMORY_SIZE)
         
     def memo_append(self, ob, act,reward, ob_next, done):
         # a_set_memory = sars(a) : [ob, (act), reward, ob_next, done]
         # ob modify for dm_wrapper                                    
-        self.state_memo.append(ob)
-        self.state_next_memo.append(ob_next)        
-        self.act_memo.append(act)
-        self.reward_memo.append(reward)
-        self.done_memo.append(done)
+        self.memo.append(memory(ob,act,reward,ob_next ,done))
         
     def memo_len(self):
-        return len(self.state_memo)
-        
-    
+        return len(self.memo)
+            
     def sample(self):
-        batch_index = random.sample(range(self.memo_len()),self.BATCH_SIZE)
+        batch_index = np.random.choice(range(self.memo_len()),self.BATCH_SIZE,replace=False)
         
-        batch_state      = np.array(self.state_memo)[batch_index]
-        batch_state_next = np.array(self.state_next_memo)[batch_index]
-        batch_act        = np.array(self.act_memo)[batch_index].astype(int)
-        batch_reward     = np.array(self.reward_memo)[batch_index]
-        batch_done       = np.array(self.done_memo)[batch_index]
-        
-        return batch_index, batch_state, batch_act, batch_reward, batch_state_next, batch_done
+        batch_state, batch_act, batch_reward, batch_state_next , batch_done = zip(*[self.memo[idx] for idx in batch_index])
+        return np.array(batch_index), np.array(batch_state), \
+            np.array(batch_act).astype(int), np.array(batch_reward), np.array(batch_state_next),  np.array(batch_done)
     
 class PReplay:
     # priorited replay buffer
@@ -139,37 +126,29 @@ class PReplay:
         self.BETA  = BETA
         self.BASE  = BASE
         
-        self.state_memo      = deque([],maxlen = MEMORY_SIZE)
-        self.state_next_memo = deque([],maxlen = MEMORY_SIZE)
-        self.act_memo    = deque([],maxlen = MEMORY_SIZE)
-        self.reward_memo = deque([],maxlen = MEMORY_SIZE)
-        self.done_memo   = deque([],maxlen = MEMORY_SIZE)
+        self.memo = deque([],maxlen = MEMORY_SIZE)
         
         self.priority  = deque([],maxlen = MEMORY_SIZE)
         self.prob      = deque([],maxlen = MEMORY_SIZE)
         
     def memo_append(self, ob, act,reward, ob_next, done):
         if len(self.priority) == 0:
-            self.priority.append(1)
+            self.priority.append(1.0)
         else:            
             self.priority.append(max(self.priority))
         # a_set_memory = sars(a) : [ob, (act), reward, ob_next, done]
-        self.state_memo.append(ob)
-        self.state_next_memo.append(ob_next)        
-        self.act_memo.append(act)
-        self.reward_memo.append(reward)
-        self.done_memo.append(done)
+        self.memo.append(memory(ob,act,reward,ob_next ,done))
         
     def memo_len(self):
-        return len(self.state_memo)
+        return len(self.memo)
         
     def prob_update(self):
         priority_alpha = np.power(np.array(self.priority),self.ALPHA)
         self.prob = priority_alpha/np.sum(priority_alpha)
         
-    def priority_update(self, error):
+    def priority_update(self, error,batch_index):
         priority_array = np.array(self.priority).astype('float') # somehow turn into int64
-        priority_array = np.abs(error) + self.BASE
+        priority_array[batch_index] = np.abs(error) + self.BASE
         self.priority = deque(priority_array.tolist(),maxlen = self.MEMORY_SIZE)
         
     def sample(self):
@@ -177,13 +156,9 @@ class PReplay:
         self.prob_update()
         batch_index = np.random.choice(range(self.memo_len()),self.BATCH_SIZE,p=self.prob,replace=False)
         
-        batch_state      = np.array(self.state_memo)[batch_index]
-        batch_state_next = np.array(self.state_next_memo)[batch_index]
-        batch_act        = np.array(self.act_memo)[batch_index].astype(int)
-        batch_reward     = np.array(self.reward_memo)[batch_index]
-        batch_done       = np.array(self.done_memo)[batch_index]
-        
-        return batch_index, batch_state, batch_act, batch_reward, batch_state_next, batch_done
+        batch_state, batch_act, batch_reward, batch_state_next , batch_done = zip(*[self.memo[idx] for idx in batch_index])
+        return np.array(batch_index), np.array(batch_state), \
+            np.array(batch_act).astype(int), np.array(batch_reward), np.array(batch_state_next),  np.array(batch_done)
 # %%
 class Logfile:
     def __init__(self, DIR):

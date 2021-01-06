@@ -6,6 +6,7 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 from collections import deque
 
@@ -18,28 +19,29 @@ from dm_wrapper import make_env
 from utils import DDQN, PReplay, Logfile,DQN, Replay
 
 # %%        
-FRAME_END = 4e5
+FRAME_END = 3e6
 
 GAMMA  = 0.99
 
 EPSILON      = 1.0
-EPSILON_END  = 0.02
-EPSILON_DECAY = 0.999985
+EPSILON_END  = 0.1
+EPSILON_DECAY = 0.9999977
 
 LEARNING_RATE = 0.0001
 
 BATCH_SIZE  = 32
 
-MEMORY_SIZE = 20_000
-MEMORY_SAMPLE_START = 1_000
+MEMORY_SIZE = 1_000_000
+MEMORY_SAMPLE_START = 5_000
 
-MODEL_UPDATE_STEP =  40
+MODEL_UPDATE_STEP =  10_000
 TRAIN_SKIP_STEP   =  4
 
 ENV_NAME = "PongNoFrameskip-v4"
 # 
 RENDER = True
-GIF_MAKE = False
+CLIP_FLAG = False
+GIF_MAKE  = False
 DDQN_FLAG = False # False for dqn
 PER_FLAG  = False # False for normal replay
 DOUBLE_FLAG = False # True for double q learning
@@ -106,8 +108,8 @@ loss_func = nn.MSELoss()
     
 def get_action(state): # get action with epsilon greedy
     # state modify for dm_wrapper
-    with torch.no_grad():
-        q = model(state)
+    #with torch.no_grad():
+    q = model(state)
     if np.random.rand() <= EPSILON:            
         return np.random.randint(N_ACT), torch.amax(q,dim=1)
     return torch.argmax(q), torch.amax(q,dim=1)
@@ -173,32 +175,36 @@ while(1):
         if ReplayBuffer.memo_len() >= MEMORY_SAMPLE_START:
             if SKIP_STEP >= TRAIN_SKIP_STEP:
                 SKIP_STEP = 0
-                UPDATE_STEP += 1
+                
                 batch_index,batch_state, batch_act, batch_reward, batch_state_next, batch_done = replay_sample_tensor()
                 
                 range_index = torch.arange(0,BATCH_SIZE,device=DEVICE)
                 batch_act = batch_act.type(torch.LongTensor).to(DEVICE)
                 # model for q now
-                predict_q = model(batch_state)[range_index,batch_act] # [32,4] batch_q = model(batch_state)
+                predict_q = model(batch_state) # [32,4] batch_q = model(batch_state)
                 
                 # target_model for max q
-                with torch.no_grad():
-                    #batch_q_target = batch_q.clone().detach()# clone vs copy # https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor
-                    if DOUBLE_FLAG:
-                        batch_max_act = torch.argmax(model(batch_state_next))
-                        target_q = batch_reward + \
-                                (1-batch_done)*GAMMA*target_model(batch_state_next)[batch_index,batch_max_act]
-                    else:
-                        target_q = batch_reward + \
-                                  (1-batch_done)*GAMMA*torch.amax(target_model(batch_state_next),dim=1)
+                #with torch.no_grad():
+                        #batch_q_target = batch_q.clone().detach()# clone vs copy # https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor
+                if DOUBLE_FLAG:
+                    target_q = predict_q.detach().clone()
+                    batch_max_act = torch.argmax(model(batch_state_next))
+                    target_q = batch_reward + \
+                            (1-batch_done)*GAMMA*target_model(batch_state_next)[batch_index,batch_max_act]
+                else:
+                    target_q = predict_q.detach().clone()
+                    target_q[range_index,batch_act] = batch_reward + \
+                                (1-batch_done)*GAMMA*torch.amax(target_model(batch_state_next),dim=1)
                 # pytorch sgd
                 #loss = loss_func(batch_q,batch_q_target)   #seems smaller 
-
+                if CLIP_FLAG:
+                    target_q = (target_q - predict_q).clamp(-1,1)+predict_q
+                    
                 if PER_FLAG:
-                    ReplayBuffer.priority_update((target_q-predict_q).cpu().detach().numpy())
+                    ReplayBuffer.priority_update((target_q-predict_q).cpu().detach().numpy(),batch_index)
                 optimizer.zero_grad()
                 loss = loss_func(predict_q,target_q)    
-                #loss = loss.clamp(-1,1)
+                loss = loss.clamp(-1,1)
                 loss.backward()
                 optimizer.step()                
                 loss_list.append(float(loss))
@@ -207,6 +213,7 @@ while(1):
             else:
                 SKIP_STEP+=1
         # copy parameters==============================
+        UPDATE_STEP += 1
         if  UPDATE_STEP >=  MODEL_UPDATE_STEP:
             UPDATE_STEP = 0
             #print("\nModel Bias:",model.advantage_fc2.bias.data)
@@ -232,8 +239,11 @@ while(1):
                    f"\tframe_sum: {frame_sum}"
                    f"\tepsilon: {EPSILON:.3f}"
                    f"\tmax_q: {max_q_max[-1]:.3f}"
-                   f"\tmean_rewards: {reward_ave[-1]:.3f}"
-                   f"\tsum_rewards: {reward_sum[-1]:.3f}")
+                   f"\tsum_rewards: {reward_sum[-1]:.3f}"
+                   f"\tmean_rewards: {reward_ave[-1]:.3f}")
+    if len(reward_ave) > 20:
+        log_file.write(             
+                   f"\tbest_mean_rewards: {max(reward_ave[20:]):.3f}")
 
     if len(loss_list):
         loss_sum.append(sum(loss_list))
@@ -253,10 +263,11 @@ while(1):
         GIF_MAKE = True
     
         # train end, rund
+
 #=============== Show the reward every ep
-print('Show the reward every ep')
+print('\nShow the reward every ep')
 plt.figure()
-plt.plot(reward_ave)
+plt.plot(reward_ave,label = 'reward_ave')
 plt.savefig(DIR + '/rewards.png')
 
 plt.figure()
@@ -266,7 +277,14 @@ plt.savefig(DIR + '/loss.png')
 plt.figure()
 plt.plot(max_q_max)
 plt.savefig(DIR + '/max_q.png')
-   
+
+plt.figure()
+plt.plot(reward_ave,label = 'reward_ave')
+plt.plot(loss_sum,  label = 'loss')
+plt.plot(max_q_max, label='max_q')
+plt.legend(loc=2)
+plt.savefig(DIR+ '/compare.png')
 
 torch.save(model.state_dict(),os.path.join(DIR,'Model.pt'))
+env.close()
 print("Done")
