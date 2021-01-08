@@ -1,6 +1,3 @@
-
-    
-    
 class Logfile:
     def __init__(self, DIR):
         self.DIR = DIR

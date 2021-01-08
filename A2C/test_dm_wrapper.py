@@ -6,7 +6,7 @@ env_name = "PongNoFrameskip-v4"
 env = make_env(env_name)
 # %%
 ob = env.reset()
-
+ACNet = AC_CNN()
 # %%
 ob,reward,done, info = env.step(env.action_space.sample())
 

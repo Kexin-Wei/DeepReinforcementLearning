@@ -9,7 +9,7 @@ import numpy as np
 # %%
 class AC_FC(nn.Module):
     # discrete actor critic network
-    def __init__(self,ALPHA, IN_DIMS, N_ACT,  FC1_DIMS = 128, FC2_DIMS = 128):
+    def __init__(self,lr, IN_DIMS, N_ACT,  FC1_DIMS = 128, FC2_DIMS = 128):
         super().__init__()
         
         self.N_ACT = N_ACT
@@ -20,7 +20,7 @@ class AC_FC(nn.Module):
         self.policy = nn.Linear(FC2_DIMS,N_ACT)
         self.value  = nn.Linear(FC2_DIMS,1)                                
         
-        self.optimizer = optim.Adam(self.parameters(),lr=ALPHA)
+        self.optimizer = optim.Adam(self.parameters(),lr=lr)
         self.device    = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
         self.to(self.device)
