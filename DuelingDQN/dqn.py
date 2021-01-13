@@ -16,7 +16,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dm_wrapper import make_env
-from utils import DDQN, PReplay, Logfile,DQN, Replay
+from utils import DDQN, PReplay, Logfile,DQN, Replay, DQN_FC
 
 # %%        
 FRAME_END = 3e6
@@ -38,6 +38,7 @@ MODEL_UPDATE_STEP =  10_000
 TRAIN_SKIP_STEP   =  4
 
 ENV_NAME = "PongNoFrameskip-v4"
+ENV_NAME = "PongDet-v4"
 # 
 RENDER = True
 CLIP_FLAG = False
@@ -45,6 +46,8 @@ GIF_MAKE  = False
 DDQN_FLAG = False # False for dqn
 PER_FLAG  = False # False for normal replay
 DOUBLE_FLAG = False # True for double q learning
+FC_FLAG   = True # True for fully connected network
+fc_num    = [256,256]
 # %%
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
@@ -65,8 +68,10 @@ if DDQN_FLAG:
     FILENAME="dueling_"+FILENAME
 if PER_FLAG:
     FILENAME='per_'+FILENAME
+if FC_FLAG:
+    FILENAME='fc_'+FILENAME
 
-ROOT = f"../test_{FILENAME}_{ENV_NAME}"
+ROOT = f"test_{FILENAME}_{ENV_NAME}"
 DIR = os.path.join(ROOT, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 try:
     os.makedirs(DIR)
@@ -94,13 +99,19 @@ if PER_FLAG:
 else:
     ReplayBuffer = Replay(MEMORY_SIZE = MEMORY_SIZE,BATCH_SIZE = BATCH_SIZE)
     
+    
+
 if DDQN_FLAG:
     model = DDQN(N_OB[2],N_ACT).to(DEVICE)
     target_model = DDQN(N_OB[2],N_ACT).to(DEVICE)
+
+elif FC_FLAG:
+    model = DQN_FC(N_ACT,fc_num).to(DEVICE)
+    target_model = DQN_FC(N_ACT,fc_num).to(DEVICE)
 else:
     model = DQN(N_OB[2],N_ACT).to(DEVICE)
     target_model = DQN(N_OB[2],N_ACT).to(DEVICE)
-    
+# %%  
 target_model.load_state_dict(model.state_dict())        
 optimizer = optim.Adam(model.parameters(),lr=LEARNING_RATE)
 loss_func = nn.MSELoss()
@@ -111,8 +122,8 @@ def get_action(state): # get action with epsilon greedy
     #with torch.no_grad():
     q = model(state)
     if np.random.rand() <= EPSILON:            
-        return np.random.randint(N_ACT), torch.amax(q,dim=1)
-    return torch.argmax(q), torch.amax(q,dim=1)
+        return np.random.randint(N_ACT), torch.amax(q,dim=1).item()
+    return torch.argmax(q), torch.amax(q,dim=1).item()
 
     
 def replay_sample_tensor():   
@@ -164,12 +175,12 @@ while(1):
         if GIF_MAKE:
             images.append(env.render(mode='rgb_array'))
 
-        state = torch.Tensor(ob.concatenate()).view(-1,N_OB[2],N_OB[0],N_OB[1]).to(DEVICE)
+        state = torch.Tensor(ob.cat()).view(-1,N_OB[2],N_OB[0],N_OB[1]).to(DEVICE)
         act, max_q = get_action(state)
         ob_next, reward, done, info = env.step(act)
 
         #ob_next_array = ob_next.concatenate()        
-        ReplayBuffer.memo_append(ob.concatenate(),act,reward,ob_next.concatenate(),done)
+        ReplayBuffer.memo_append(ob.cat(),act,reward,ob_next.cat(),done)
         
         # batch train==============================
         if ReplayBuffer.memo_len() >= MEMORY_SAMPLE_START:
@@ -223,7 +234,7 @@ while(1):
         step += 1
         frame_sum +=1
         
-        max_q_list.append(float(max_q))
+        max_q_list.append(max_q)
         reward_list.append(reward)
             
         if done:            

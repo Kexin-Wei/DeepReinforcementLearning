@@ -17,14 +17,14 @@ from agent import A2C_GAE
 # %%
 RENDER_FLAG      = False
 TENSORBOARD_FLAG = True
-EPOCHS = 2000
+EPOCHS = 3000*5
 GAMMA  = 0.99
 LAMBDA = 0.5
 COEF_VALUE = 0.5
 COEF_ENT   = 0.01
 
 
-lr  = 1e-8
+lr  = 1e-6
 fc1 = 2048
 fc2 = 2048
 # %%

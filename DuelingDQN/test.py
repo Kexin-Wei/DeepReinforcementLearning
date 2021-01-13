@@ -1,5 +1,6 @@
 # %%
 import gym
+from imageio.core.util import asarray
 
 from utils import Replay
 from dm_wrapper import make_env
@@ -30,4 +31,11 @@ while(1):
             
         if done:
             break
+# %%
+def args_test(*args):
+    if args:
+        print(args)
+        assert len(args[0])==2
+    else:
+        print("No args")
 # %%

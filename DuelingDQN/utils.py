@@ -65,7 +65,26 @@ class DDQN(nn.Module):
         
         x = x2-x2.mean(dim=1,keepdim=True)+x1
         return x
-
+    
+class DQN_FC(nn.Module):
+    def __init__(self,N_ACT,*args):
+        super().__init__()
+        if args:
+            fc_num = args[0]
+            assert len(fc_num) == 2
+            fc1, fc2 = fc_num[0],fc_num[1]
+        else:
+            fc1, fc2 = 256,256
+        self.fc1 = nn.Linear(84*84*4,fc1)
+        self.fc2 = nn.Linear(fc1,fc2)
+        self.out = nn.Linear(fc1,N_ACT)
+        
+    def forward(self,x):
+        x = F.relu(self.fc1(x.reshape(-1,84*84*4)))
+        x = F.relu(self.fc2(x))
+        x = self.out(x)
+        return x 
+    
 class DQN(nn.Module):
     def __init__(self,IN_CHANNEL,N_ACT):
         super().__init__()
