@@ -10,8 +10,8 @@ from dm_wrapper import make_atari,wrap_deepmind
 
 
 # %%
-env_name = "LunarLander-v2"
 env_name = "PongNoFrameskip-v4"
+env_name = "LunarLander-v2"
 
 if 'NoFrameskip' in env_name:
     FRAME_STACK_FLAG = True

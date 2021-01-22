@@ -5,6 +5,7 @@ import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 
+from itertools import accumulate
 from collections import namedtuple
 from torch.utils.tensorboard import SummaryWriter
 from model import ACNET_FC,ACNET_CNN, ACNET_FC_FLAT,Actor, Critic
@@ -33,10 +34,8 @@ def A2C(lr,COEF_ENT,COEF_VALUE,GAMMA,
     
     if FRAME_STACK_FLAG:
         ACNet = ACNET_FC_FLAT(lr,N_ACT,[fc1,fc2])
-        
         comment = f"lr_{lr}"
     else:
-        
         ACNet = ACNET_FC(lr,N_OB, N_ACT,
                             FC1_DIMS = fc1, FC2_DIMS = fc2)
 
@@ -48,7 +47,7 @@ def A2C(lr,COEF_ENT,COEF_VALUE,GAMMA,
     TEST = False
     ep=0
     reward_list = []
-    
+    loss_list   = []
     def get_action(ob):   
         v, p = ACNet(ob)
         dist = torch.distributions.Categorical(p) # discrete distribution with N_ACTs probabilities
@@ -69,10 +68,13 @@ def A2C(lr,COEF_ENT,COEF_VALUE,GAMMA,
         actor_loss   = - dist.log_prob(act_tensor) * td_error
         entropy_loss = - COEF_ENT*dist.entropy() # already has - 
         critic_loss  = COEF_VALUE*td_error**2
+        total_loss = actor_loss+entropy_loss+critic_loss
         
         ACNet.optimizer.zero_grad()
-        (actor_loss+entropy_loss+critic_loss).backward()
+        total_loss.backward()
         ACNet.optimizer.step()
+        
+        return total_loss.item()
     
     while(1):
         ob = env.reset()
@@ -92,8 +94,8 @@ def A2C(lr,COEF_ENT,COEF_VALUE,GAMMA,
             
             next_ob, reward, done, info = env.step(act)
             
-            reward = 1 if reward>0 else 0
-            train(ob, act, reward, next_ob, done)
+            #reward = 1 if reward>0 else 0
+            loss = train(ob, act, reward, next_ob, done)
             
             ob = next_ob
             reward_sum += reward
@@ -107,8 +109,9 @@ def A2C(lr,COEF_ENT,COEF_VALUE,GAMMA,
         
         ep += 1
         reward_list.append(reward_sum)
+        loss_list.append(loss)
         
-        print(f"Epoch:{ep} \t reward: {reward_sum:.2f} \t best reward:{max(reward_list):.2f}")
+        print(f"Epoch:{ep} \t reward: {reward_sum:.2f} \t best reward:{max(reward_list):.2f} \t loss {loss_list[-1]:.3f}")
         
         if TENSORBOARD_FLAG:
             writer.add_scalar("Reward",reward_sum,ep)
@@ -166,28 +169,32 @@ def A2C_GAE(lr,
         dones   = torch.Tensor(dones).to(ACNet.device)
         
         td_errors  = rewards + (1-dones)*GAMMA*value_next_s[0]-value_s[0]
-        advantages = [] 
-        advantage  = 0
+        
+        advantages,adv= [],0
         for i in reversed(range(td_errors.shape[0])):
-            advantage = LAMBDA*GAMMA*advantage+td_errors[i]
-            advantages.append(advantage)
+            adv = td_errors[i] + LAMBDA*GAMMA*adv
+            advantages.append(adv)
         
         advantages = torch.stack(advantages).to(ACNet.device)
         dist = torch.distributions.Categorical(p_s)
         # sum , mean too bad
-        actor_loss   = -(dist.log_prob(acts)*advantages).sum()
-        entropy_loss = -COEF_ENT*dist.entropy().sum()
-        critic_loss  = COEF_VALUE*(td_errors**2).sum()
+        actor_loss   = -(dist.log_prob(acts)*advantages).mean()
+        entropy_loss = -COEF_ENT*dist.entropy().mean()
+        critic_loss  = COEF_VALUE*(td_errors**2).mean()
+        total_loss = actor_loss+entropy_loss+critic_loss
         
         ACNet.optimizer.zero_grad()
-        (actor_loss+entropy_loss+critic_loss).backward()
+        total_loss.backward()
         ACNet.optimizer.step()
+        
+        return total_loss
     
     if TENSORBOARD_FLAG:
         writer = SummaryWriter(os.path.join(DIR,comment))
         
     TEST = False
     reward_list = []
+    loss_list   = []
     ep=0
     memo = namedtuple('Experience', ['state','act','reward','next_state','done'])
     #%%time
@@ -220,8 +227,8 @@ def A2C_GAE(lr,
                 
                 break
         #==================================================
-        train(memory)
-        
+        total_loss = train(memory)
+        loss_list.append(total_loss)
         if TEST:
             print(f"Final Test: reward:{reward_sum}")
             break
@@ -229,7 +236,12 @@ def A2C_GAE(lr,
         ep += 1
         reward_list.append(reward_sum)
         
-        print(f"Epoch:{ep} \t reward:{reward_sum:.2f} \t  best reward:{max(reward_list):.2f}")
+        print(f"Epoch:{ep}"
+              f"\t reward:{reward_sum:.2f}"
+              f"\t mean reward:{sum(reward_list[-100:])/min(len(reward_list),100):.2f}"
+              f"\t worset reward:{min(reward_list):.2f}"
+              f"\t best reward:{max(reward_list):.2f}"
+              f"\t loss: {total_loss:.3f}")
         
         if TENSORBOARD_FLAG:
             writer.add_scalar("Reward",reward_sum,ep)
@@ -250,6 +262,10 @@ def A2C_GAE(lr,
     plt.title("Reward")
     plt.savefig(f"{DIR}/{comment}_reward_max_{max(reward_list):.2f}.png")
 
+    plt.figure()
+    plt.plot(loss_list)
+    plt.title('Loss')
+    plt.show()
     env.close()
 # %%
 def A2C_2_NET(lr,COEF_ENT,COEF_VALUE,GAMMA,
