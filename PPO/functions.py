@@ -78,7 +78,7 @@ def train(memos,ac,ac_old,optimizer,args):
     kl_dict = {'max'  :[],
                'mean' :[]}
     
-    loss_list = {'clip'   :[],
+    loss_dict = {'clip'   :[],
                  'entropy' :[],
                  'vf'  :[],
                  'sum' :[]}
@@ -112,12 +112,12 @@ def train(memos,ac,ac_old,optimizer,args):
         
         kl_dict["max"].append(kl.max().item())
         kl_dict["mean"].append(kl.mean().item())
-        loss_list['clip'].append(loss_clip.item())
-        loss_list['entropy'].append(loss_entropy.item())
-        loss_list['vf'].append(loss_vf.item())
-        loss_list['sum'].append((loss_clip+loss_vf+loss_entropy).item())
+        loss_dict['clip'].append(loss_clip.item())
+        loss_dict['entropy'].append(loss_entropy.item())
+        loss_dict['vf'].append(loss_vf.item())
+        loss_dict['sum'].append((loss_clip+loss_vf+loss_entropy).item())
         
-    return kl_dict,loss_list
+    return kl_dict,loss_dict
     #ac_old.load_state_dict(ac.state_dict())
     
 def dir_maker(args,FILENAME):

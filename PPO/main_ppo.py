@@ -16,18 +16,22 @@ from functions import agent,test,dir_maker,train
 def main():
     args = get_args()
     
+    # directory define
     FILENAME = os.path.splitext(os.path.basename(__file__))[0]
     DIR,comment = dir_maker(args,FILENAME)
     MODEL_FILE = f"{DIR}/Best_Model.pt"
     
-    env = gym.make(args.env_name)
-    N_OB = env.observation_space.shape[0]
-    N_ACT = env.action_space.shape[0]
-    
+
+    # network define            
     if args.DEVICE is None:
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'        
+    else:
+        device = args.DEVICE
     
-                           
+    env = gym.make(args.env_name)
+    N_OB = env.observation_space.shape[0]
+    N_ACT = env.action_space.shape[0]          
+        
     ACNet = ActorCritic(N_OB,N_ACT,fc_n=args.fc_n,device=device,NORMALIZE = args.NORMALIZE_FLAG)
     if os.path.isfile(MODEL_FILE):
         ACNet.load_state_dict(torch.load(MODEL_FILE))
@@ -38,17 +42,19 @@ def main():
     optimizer = torch.optim.Adam(ACNet.parameters(),lr=args.LR)
         
     
+    # visulize data
     reward_list = []
     best_reward = None
     kl_max = []
     loss_sum = { 'sum': [],
-                  'vf': [] }
-    
-    
+                  'vf': [],
+                  'entropy': []}
+        
     
     if args.TENSORBOARD_FLAG:
         writer = SummaryWriter(f"{DIR}/{comment}")
     
+    # start train
     pbar = tqdm(range(args.EPOCHS))
     for ep in pbar:
     
@@ -75,10 +81,11 @@ def main():
         # now = time.perf_counter()
         # print(f"Second {now - past:.2f}, Len {memos.len}")
         
-        kl_dict,loss_list = train(memos,ACNet,ACNet_old,optimizer,args)
+        kl_dict,loss_dict = train(memos,ACNet,ACNet_old,optimizer,args)
         kl_max.append(sum(kl_dict["max"])/args.UPDATE_EP)
-        loss_sum['vf'].append(sum(loss_list['vf']))
-        loss_sum['sum'].append(sum(loss_list['sum']))
+        loss_sum['vf'].append(sum(loss_dict['vf']))
+        loss_sum['sum'].append(sum(loss_dict['sum']))
+        loss_sum['entropy'].append(sum(loss_dict['entropy']))
         
         ACNet_old.load_state_dict(ACNet.state_dict())
         
@@ -107,6 +114,7 @@ def main():
             writer.add_scalar("KL_max",kl_max[-1],ep)
             writer.add_scalar("Loss_sum_sum",loss_sum['sum'][-1],ep)
             writer.add_scalar("Loss_vf_sum",loss_sum['vf'][-1],ep)
+            writer.add_scalar("Loss_entropy_sum",loss_sum['entropy'][-1],ep)
             writer.flush()
             
         pbar.set_postfix_str(s=f" kl:{kl_max[-1]:.3e},  loss:{loss_sum['sum'][-1]:.3f}")
@@ -129,6 +137,7 @@ def main():
     plt.figure()
     plt.plot(loss_sum['vf'],label= 'vf')
     plt.plot(loss_sum['sum'],label='sum')
+    plt.plot(loss_sum['entropy'],label='entropy')
     plt.legend(loc=2)
     plt.title("Loss")
     plt.savefig(f"{DIR}/loss_list_and_sum.png")

@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Laparo",
+            "type": "python",
+            "request": "launch",
+            "program": "${fileDirname}/mainScript_parallel.py",
+            "console": "integratedTerminal",
+            "cwd":"${fileDirname}"
+        },
+        {
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",

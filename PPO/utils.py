@@ -1,7 +1,7 @@
 import argparse
 def get_args():
     parser = argparse.ArgumentParser(description='PPO Hyperparameters Adjust')
-    parser.add_argument("--EPOCHS",default=500,
+    parser.add_argument("--EPOCHS",default=2000,
                                     type=int,
                                     help="Whole program epochs")
     
@@ -17,7 +17,7 @@ def get_args():
                                     type=int,
                                     help="Collect constant steps per ep, controled by ONE_EP_FLAG")
     
-    parser.add_argument("--WORKER_NUM",default=2,
+    parser.add_argument("--WORKER_NUM",default=4,
                                     type=int,
                                     help="Parallel worker number to collect experience, total collections equal STEPS_PER_EP ")
     
@@ -25,7 +25,7 @@ def get_args():
                                     action="store_true",
                                     help="Flag to collect steps per ep until env ends, Fasle to collect constant steps, controlled by STEPS_PER_EP ")
     
-    parser.add_argument("-lr","--LR",default=5e-4,
+    parser.add_argument("-lr","--LR",default=3e-4,
                                     type=float,
                                     help="Learning rate of model under Adam")
     
@@ -46,7 +46,7 @@ def get_args():
                                     type=int,
                                     help="Hidden layer number of Network")
     
-    parser.add_argument("--COEF_ENTROPY",default=0.0,
+    parser.add_argument("--COEF_ENTROPY",default=0.1,
                                     type=float,
                                     help="Coefficience of entropy loss")
     
