@@ -6,4 +6,5 @@ sudo docker run -it -p 8888:8888 tensorflow/tensorflow:latest-gpu-jupyter
 # 172.16.126.128
 # 172.16.127.222
 # 172.16.124.137
-172.16.125.45
+# 172.16.125.45
+172.16.124.125
